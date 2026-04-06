@@ -1,0 +1,71 @@
+name: Release Notes
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get commits since last tag
+        id: commits
+        run: |
+          CURRENT_TAG="${{ github.ref_name }}"
+          PREV_TAG=$(git tag --sort=-version:refname | grep -v "^${CURRENT_TAG}$" | head -1)
+
+          if [ -z "$PREV_TAG" ]; then
+            echo "No previous tag found — using all commits"
+            COMMITS=$(git log --oneline | head -50)
+          else
+            echo "Previous tag: $PREV_TAG"
+            COMMITS=$(git log --oneline "${PREV_TAG}..${CURRENT_TAG}" | head -50)
+          fi
+
+          echo "prev_tag=$PREV_TAG" >> $GITHUB_OUTPUT
+          echo "commits<<EOF" >> $GITHUB_OUTPUT
+          echo "$COMMITS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Generate release notes with Claude
+        id: notes
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          PROMPT="You are a technical writer. Convert these git commit messages into clear, plain-English release notes for a developer audience.\n\nRelease: ${{ github.ref_name }}\nPrevious release: ${{ steps.commits.outputs.prev_tag }}\n\n## Commits\n${{ steps.commits.outputs.commits }}\n\nWrite release notes grouped into three sections (omit sections with no entries):\n**Features** — new capabilities added\n**Improvements** — enhancements to existing functionality\n**Fixes** — bug fixes and corrections\n\nWrite in plain English, not as commit messages. Be concise and developer-friendly."
+
+          RESPONSE=$(curl -s https://api.anthropic.com/v1/messages \
+            -H "x-api-key: $ANTHROPIC_API_KEY" \
+            -H "anthropic-version: 2023-06-01" \
+            -H "content-type: application/json" \
+            -d "{
+              \"model\": \"claude-sonnet-4-6\",
+              \"max_tokens\": 1024,
+              \"messages\": [{\"role\": \"user\", \"content\": $(echo "$PROMPT" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')}]
+            }")
+
+          NOTES=$(echo "$RESPONSE" | python3 -c \
+            'import json,sys; data=json.load(sys.stdin); print(data["content"][0]["text"])' \
+            2>/dev/null || echo "Release notes generation failed — check ANTHROPIC_API_KEY secret.")
+
+          echo "notes<<EOF" >> $GITHUB_OUTPUT
+          echo "$NOTES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            --title "Release ${{ github.ref_name }}" \
+            --notes "${{ steps.notes.outputs.notes }}" \
+            --repo ${{ github.repository }}

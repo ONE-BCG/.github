@@ -1,0 +1,85 @@
+name: PR Summary
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  summarise:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get PR diff
+        id: diff
+        run: |
+          git fetch origin ${{ github.base_ref }}
+          DIFF=$(git diff origin/${{ github.base_ref }}...HEAD -- . \
+            ':(exclude)*.lock' \
+            ':(exclude)package-lock.json' \
+            ':(exclude)yarn.lock' | head -c 15000)
+          echo "diff<<EOF" >> $GITHUB_OUTPUT
+          echo "$DIFF" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Read CLAUDE.md context
+        id: context
+        run: |
+          if [ -f CLAUDE.md ]; then
+            CLAUDE_CTX=$(head -c 3000 CLAUDE.md)
+          else
+            CLAUDE_CTX="No CLAUDE.md found — apply general best practices."
+          fi
+          echo "claude_ctx<<EOF" >> $GITHUB_OUTPUT
+          echo "$CLAUDE_CTX" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Generate PR summary with Claude
+        id: summary
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          PROMPT="You are a senior code reviewer. Using the project context below, write a concise PR summary.\n\n## Project Context\n${{ steps.context.outputs.claude_ctx }}\n\n## PR Diff\n${{ steps.diff.outputs.diff }}\n\nWrite a structured summary with these four sections:\n**What this PR does** — 2-3 sentences\n**Files changed** — bullet list of key files and what changed\n**Issues found** — any bugs, anti-patterns, or concerns (or 'None identified')\n**Reviewer checklist** — 3-5 actionable items for the reviewer"
+
+          RESPONSE=$(curl -s https://api.anthropic.com/v1/messages \
+            -H "x-api-key: $ANTHROPIC_API_KEY" \
+            -H "anthropic-version: 2023-06-01" \
+            -H "content-type: application/json" \
+            -d "{
+              \"model\": \"claude-sonnet-4-6\",
+              \"max_tokens\": 1024,
+              \"messages\": [{\"role\": \"user\", \"content\": $(echo "$PROMPT" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')}]
+            }")
+
+          SUMMARY=$(echo "$RESPONSE" | python3 -c \
+            'import json,sys; data=json.load(sys.stdin); print(data["content"][0]["text"])' \
+            2>/dev/null || echo "Failed to generate summary — check ANTHROPIC_API_KEY secret.")
+
+          echo "summary<<EOF" >> $GITHUB_OUTPUT
+          echo "$SUMMARY" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Delete previous bot summary comment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
+            --jq '.[] | select(.user.login == "github-actions[bot]") | select(.body | startswith("<!-- pr-summary -->")) | .id' \
+            | xargs -I{} gh api --method DELETE \
+              "repos/${{ github.repository }}/issues/comments/{}" || true
+
+      - name: Post PR summary comment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BODY=$'<!-- pr-summary -->\n## Claude PR Summary\n\n'"${{ steps.summary.outputs.summary }}"
+          gh pr comment ${{ github.event.pull_request.number }} \
+            --body "$BODY" \
+            --repo ${{ github.repository }}

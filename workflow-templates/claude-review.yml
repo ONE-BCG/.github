@@ -1,0 +1,91 @@
+name: Claude Review
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  respond:
+    # Only run on PR comments that mention @claude
+    if: contains(github.event.comment.body, '@claude') && github.event.issue.pull_request
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get PR diff
+        id: pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUM=${{ github.event.issue.number }}
+          PR_DATA=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUM")
+          BASE=$(echo "$PR_DATA" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["base"]["sha"])')
+          HEAD=$(echo "$PR_DATA" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["head"]["sha"])')
+
+          git fetch origin "$BASE" "$HEAD" 2>/dev/null || true
+          DIFF=$(git diff "$BASE".."$HEAD" | head -c 12000)
+
+          echo "diff<<EOF" >> $GITHUB_OUTPUT
+          echo "$DIFF" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Read CLAUDE.md context
+        id: context
+        run: |
+          if [ -f CLAUDE.md ]; then
+            CLAUDE_CTX=$(head -c 2000 CLAUDE.md)
+          else
+            CLAUDE_CTX="No CLAUDE.md found."
+          fi
+          echo "claude_ctx<<EOF" >> $GITHUB_OUTPUT
+          echo "$CLAUDE_CTX" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Extract question from comment
+        id: question
+        run: |
+          # Strip the @claude mention to isolate the actual question
+          QUESTION=$(echo "${{ github.event.comment.body }}" | sed 's/@claude//g' | xargs)
+          echo "question=$QUESTION" >> $GITHUB_OUTPUT
+
+      - name: Get Claude response
+        id: response
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          PROMPT="You are a senior code reviewer. A developer asked you a question about a pull request.\n\n## Project Context\n${{ steps.context.outputs.claude_ctx }}\n\n## PR Diff\n${{ steps.pr.outputs.diff }}\n\n## Developer Question\n${{ steps.question.outputs.question }}\n\nAnswer concisely and specifically. Reference exact file names and line numbers where relevant."
+
+          RESPONSE=$(curl -s https://api.anthropic.com/v1/messages \
+            -H "x-api-key: $ANTHROPIC_API_KEY" \
+            -H "anthropic-version: 2023-06-01" \
+            -H "content-type: application/json" \
+            -d "{
+              \"model\": \"claude-sonnet-4-6\",
+              \"max_tokens\": 1024,
+              \"messages\": [{\"role\": \"user\", \"content\": $(echo "$PROMPT" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')}]
+            }")
+
+          ANSWER=$(echo "$RESPONSE" | python3 -c \
+            'import json,sys; data=json.load(sys.stdin); print(data["content"][0]["text"])' \
+            2>/dev/null || echo "Failed to get response from Claude — check ANTHROPIC_API_KEY secret.")
+
+          echo "answer<<EOF" >> $GITHUB_OUTPUT
+          echo "$ANSWER" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Post Claude response as comment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BODY=$'**Claude response**\n\n'"${{ steps.response.outputs.answer }}"
+          gh issue comment ${{ github.event.issue.number }} \
+            --body "$BODY" \
+            --repo ${{ github.repository }}

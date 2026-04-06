@@ -1,0 +1,76 @@
+name: Security Scan
+
+on:
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Get push diff
+        id: diff
+        run: |
+          DIFF=$(git diff HEAD~1 HEAD | head -c 15000)
+          echo "diff<<EOF" >> $GITHUB_OUTPUT
+          echo "$DIFF" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Scan with Claude
+        id: scan
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          PROMPT="You are a security engineer. Review this code diff for security vulnerabilities.\n\nCheck specifically for:\n- SQL injection (string concatenation in queries, unparameterised inputs)\n- Hardcoded secrets, API keys, passwords, tokens, or connection strings\n- Missing authentication or authorisation checks\n- Insecure Direct Object References (IDOR)\n- Cross-site scripting (XSS) — unescaped user input rendered in HTML\n- Exposed AWS credentials or cloud keys\n- Sensitive data written to logs (passwords, tokens, PII)\n- Command injection (unescaped input passed to shell)\n- Path traversal (user-controlled file paths)\n\n## Diff\n${{ steps.diff.outputs.diff }}\n\nIf you find ANY issues, start your response with: ISSUES_FOUND\nThen list each issue with: severity (High/Medium/Low), file and line, and a short description.\nIf the code is clean, respond with exactly: SCAN CLEAN"
+
+          RESPONSE=$(curl -s https://api.anthropic.com/v1/messages \
+            -H "x-api-key: $ANTHROPIC_API_KEY" \
+            -H "anthropic-version: 2023-06-01" \
+            -H "content-type: application/json" \
+            -d "{
+              \"model\": \"claude-sonnet-4-6\",
+              \"max_tokens\": 1024,
+              \"messages\": [{\"role\": \"user\", \"content\": $(echo "$PROMPT" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')}]
+            }")
+
+          RESULT=$(echo "$RESPONSE" | python3 -c \
+            'import json,sys; data=json.load(sys.stdin); print(data["content"][0]["text"])' \
+            2>/dev/null || echo "SCAN ERROR — check ANTHROPIC_API_KEY secret.")
+
+          echo "result<<EOF" >> $GITHUB_OUTPUT
+          echo "$RESULT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create issue if vulnerabilities found
+        if: contains(steps.scan.outputs.result, 'ISSUES_FOUND')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          SHORT="${{ github.sha }}"
+          SHORT="${SHORT:0:7}"
+          TITLE="Security Scan: Potential issues found in $SHORT"
+          BODY=$'## Security Scan Results\n\nCommit: ['"$SHORT"'](https://github.com/'"${{ github.repository }}"'/commit/'"${{ github.sha }}"')\nBranch: '"${{ github.ref_name }}"'\n\n'"${{ steps.scan.outputs.result }}"
+
+          # Try with security label, fall back without it
+          gh issue create \
+            --title "$TITLE" \
+            --body "$BODY" \
+            --label "security" \
+            --repo ${{ github.repository }} 2>/dev/null || \
+          gh issue create \
+            --title "$TITLE" \
+            --body "$BODY" \
+            --repo ${{ github.repository }}
+
+      - name: Log clean result
+        if: "!contains(steps.scan.outputs.result, 'ISSUES_FOUND')"
+        run: echo "SCAN CLEAN — no security issues found in this push."

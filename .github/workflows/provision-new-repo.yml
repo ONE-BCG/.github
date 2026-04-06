@@ -1,0 +1,56 @@
+name: Provision New Repo
+
+on:
+  repository_dispatch:
+    types: [provision]
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  provision:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout .github repo
+        uses: actions/checkout@v4
+
+      - name: Webhook path — provision single repo
+        if: github.event_name == 'repository_dispatch'
+        env:
+          GH_TOKEN: ${{ secrets.ORG_PROVISIONING_PAT }}
+        run: |
+          REPO="${{ github.event.client_payload.repo }}"
+          LANG="${{ github.event.client_payload.language }}"
+          DESC="${{ github.event.client_payload.description }}"
+          TEMPLATE=$(bash scripts/resolve-template.sh "$LANG" "$DESC")
+          echo "Template resolved: $TEMPLATE"
+          bash scripts/apply-template.sh "$REPO" "$TEMPLATE" "$GH_TOKEN"
+
+      - name: Schedule path — scan all unprovisioned repos
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ secrets.ORG_PROVISIONING_PAT }}
+          ORG: ${{ github.repository_owner }}
+        run: |
+          REPOS=$(gh api "orgs/$ORG/repos" --paginate --jq '.[].full_name')
+          for REPO in $REPOS; do
+            NAME=$(echo "$REPO" | cut -d'/' -f2)
+            # Skip control repos
+            if [[ "$NAME" == ".github" || "$NAME" == "eng-ops" ]]; then
+              echo "Skipping $REPO (control repo)"
+              continue
+            fi
+            # Skip already-provisioned repos (check for pr-summary.yml)
+            if gh api "repos/$REPO/contents/.github/workflows/pr-summary.yml" --silent 2>/dev/null; then
+              echo "Skipping $REPO (already provisioned)"
+              continue
+            fi
+            LANG=$(gh api "repos/$REPO" --jq '.language // ""')
+            DESC=$(gh api "repos/$REPO" --jq '.description // ""')
+            TEMPLATE=$(bash scripts/resolve-template.sh "$LANG" "$DESC")
+            echo "Provisioning $REPO with $TEMPLATE"
+            bash scripts/apply-template.sh "$REPO" "$TEMPLATE" "$GH_TOKEN" || echo "Failed to provision $REPO — will retry next run"
+          done

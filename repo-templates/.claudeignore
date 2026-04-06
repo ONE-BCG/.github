@@ -1,0 +1,42 @@
+# Generated files — never review these
+Migrations/
+*.Designer.cs
+*.g.cs
+*.generated.cs
+*.AssemblyInfo.cs
+
+# Build output
+**/obj/
+**/bin/
+dist/
+build/
+out/
+
+# Dependencies
+node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+poetry.lock
+Pipfile.lock
+go.sum
+
+# Minified assets
+*.min.js
+*.min.css
+wwwroot/lib/
+
+# Test coverage
+coverage/
+.nyc_output/
+TestResults/
+*.trx
+
+# IDE / OS
+.idea/
+.vs/
+.vscode/
+*.suo
+*.user
+Thumbs.db
+.DS_Store
