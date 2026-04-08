@@ -1,0 +1,92 @@
+name: Code Coverage
+
+on:
+  pull_request:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  # Minimum coverage percentage required. PRs that drop below this threshold will fail.
+  COVERAGE_THRESHOLD: 80
+
+jobs:
+  coverage:
+    name: coverage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # ── .NET — uncomment if using .NET ────────────────────────────────────
+      # - name: Setup .NET
+      #   uses: actions/setup-dotnet@v4
+      #   with:
+      #     dotnet-version: '8.0'
+      # - name: Restore
+      #   run: dotnet restore
+      # - name: Test with coverage
+      #   run: |
+      #     dotnet test --no-restore \
+      #       --collect:"XPlat Code Coverage" \
+      #       --results-directory ./coverage
+      # - name: Install ReportGenerator
+      #   run: dotnet tool install -g dotnet-reportgenerator-globaltool
+      # - name: Generate coverage report
+      #   run: |
+      #     reportgenerator \
+      #       -reports:"./coverage/**/coverage.cobertura.xml" \
+      #       -targetdir:"./coverage/report" \
+      #       -reporttypes:"Cobertura;TextSummary"
+      # - name: Check threshold & post comment
+      #   env:
+      #     GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      #   run: |
+      #     COVERAGE=$(grep -oP 'Line coverage: \K[\d.]+' ./coverage/report/Summary.txt || echo "0")
+      #     echo "Coverage: $COVERAGE%"
+      #     gh pr comment ${{ github.event.pull_request.number }} \
+      #       --body "<!-- coverage -->\n## Coverage Report\nLine coverage: **${COVERAGE}%** (threshold: ${{ env.COVERAGE_THRESHOLD }}%)" \
+      #       --repo ${{ github.repository }} || true
+      #     if (( $(echo "$COVERAGE < ${{ env.COVERAGE_THRESHOLD }}" | bc -l) )); then
+      #       echo "ERROR: Coverage $COVERAGE% is below threshold ${{ env.COVERAGE_THRESHOLD }}%"
+      #       exit 1
+      #     fi
+
+      # ── Python — uncomment if using Python ────────────────────────────────
+      # - name: Setup Python
+      #   uses: actions/setup-python@v5
+      #   with:
+      #     python-version: '3.12'
+      # - name: Install dependencies
+      #   run: pip install -r requirements.txt pytest pytest-cov
+      # - name: Run tests with coverage
+      #   run: |
+      #     pytest --cov=. --cov-report=xml --cov-report=term-missing \
+      #       --cov-fail-under=${{ env.COVERAGE_THRESHOLD }}
+      # - name: Upload coverage report
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: coverage-report
+      #     path: coverage.xml
+      #     retention-days: 14
+
+      # ── Node / TypeScript — uncomment if using Node ────────────────────────
+      # - name: Setup Node
+      #   uses: actions/setup-node@v4
+      #   with:
+      #     node-version: '20'
+      #     cache: 'npm'
+      # - name: Install dependencies
+      #   run: npm ci
+      # - name: Run tests with coverage
+      #   run: npm test -- --coverage --coverageThreshold='{"global":{"lines":${{ env.COVERAGE_THRESHOLD }}}}'
+      # - name: Upload coverage report
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: coverage-report
+      #     path: coverage/
+      #     retention-days: 14

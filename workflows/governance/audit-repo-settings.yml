@@ -1,0 +1,64 @@
+name: Audit Repo Settings (Org-wide)
+
+on:
+  schedule:
+    # Run every night at 02:00 UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  audit:
+    name: audit repo settings
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Re-enforce settings across all org repos
+        id: audit
+        env:
+          GH_TOKEN: ${{ secrets.ORG_PROVISIONING_PAT }}
+          ORG: ${{ github.repository_owner }}
+        run: |
+          DRIFT=""
+
+          REPOS=$(gh api "orgs/$ORG/repos" --paginate \
+            --jq '[.[] | select(.archived == false and .fork == false) | .full_name]' \
+            | python3 -c "import json,sys; print('\n'.join(json.load(sys.stdin)))")
+
+          while IFS= read -r REPO; do
+            echo "Auditing $REPO"
+            # Re-run enforce-settings; capture any non-zero exit as drift
+            if ! bash scripts/governance/enforce-settings.sh "$REPO" "$GH_TOKEN" 2>&1; then
+              DRIFT="$DRIFT\n- $REPO"
+            fi
+          done <<< "$REPOS"
+
+          echo "drift<<EOF" >> $GITHUB_OUTPUT
+          printf "$DRIFT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Alert on drift
+        if: steps.audit.outputs.drift != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GOOGLE_CHAT_WEBHOOK_URL: ${{ secrets.GOOGLE_CHAT_WEBHOOK_URL }}
+        run: |
+          MSG="*[ONEBCG] Repo settings drift detected*\nThe following repos had settings that were out of compliance and were corrected:\n${{ steps.audit.outputs.drift }}"
+
+          if [ -n "$GOOGLE_CHAT_WEBHOOK_URL" ]; then
+            curl -s -X POST "$GOOGLE_CHAT_WEBHOOK_URL" \
+              -H "Content-Type: application/json" \
+              -d "{\"text\": \"$MSG\"}"
+          fi
+
+          gh issue create \
+            --title "Repo settings drift corrected — $(date -u +%Y-%m-%d)" \
+            --body "## Settings Drift Report\n\nThe following repositories had settings that deviated from policy and were corrected:\n${{ steps.audit.outputs.drift }}\n\n_Generated: $(date -u)_" \
+            --label "governance" \
+            --repo ${{ github.repository }} || true

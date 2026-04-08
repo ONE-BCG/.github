@@ -1,0 +1,52 @@
+name: Stale Issues & PRs
+
+on:
+  schedule:
+    # Run every day at 01:00 UTC
+    - cron: '0 1 * * *'
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mark stale issues and PRs
+        uses: actions/stale@v9
+        with:
+          # ── Issues ────────────────────────────────────────────────────────
+          stale-issue-message: >
+            This issue has been automatically marked as stale because it has not had
+            activity in the last 30 days. It will be closed in 7 days unless further
+            activity occurs. If this is still relevant, please add a comment or remove
+            the `stale` label.
+          close-issue-message: >
+            This issue was closed automatically after 7 days of inactivity since being
+            marked stale. Please re-open if the issue is still relevant.
+          days-before-issue-stale: 30
+          days-before-issue-close: 7
+          stale-issue-label: stale
+
+          # ── Pull Requests ─────────────────────────────────────────────────
+          stale-pr-message: >
+            This pull request has been automatically marked as stale because it has not
+            had activity in the last 30 days. It will be closed in 7 days unless further
+            activity occurs.
+          close-pr-message: >
+            This pull request was closed automatically after 7 days of inactivity since
+            being marked stale. Please re-open if the work is still in progress.
+          days-before-pr-stale: 30
+          days-before-pr-close: 7
+          stale-pr-label: stale
+
+          # ── Exemptions ────────────────────────────────────────────────────
+          # Issues / PRs with any of these labels are never marked stale.
+          exempt-issue-labels: 'pinned,blocker,security,in-progress'
+          exempt-pr-labels: 'pinned,blocker,security,in-progress,do-not-merge'
+
+          # ── Limits ────────────────────────────────────────────────────────
+          operations-per-run: 100
+          remove-stale-when-updated: true

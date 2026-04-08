@@ -1,0 +1,59 @@
+name: SonarCloud Analysis
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  sonarcloud:
+    name: sonarcloud
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Required for SonarCloud blame data
+
+      # ── .NET — uncomment and configure if using .NET ──────────────────────
+      # - name: Setup .NET
+      #   uses: actions/setup-dotnet@v4
+      #   with:
+      #     dotnet-version: '8.0'
+      # - name: Install SonarScanner for .NET
+      #   run: dotnet tool install --global dotnet-sonarscanner
+      # - name: Build and analyse
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      #   run: |
+      #     dotnet sonarscanner begin \
+      #       /k:"${{ github.repository_owner }}_${{ github.event.repository.name }}" \
+      #       /o:"REPLACE-WITH-SONAR-ORG" \
+      #       /d:sonar.host.url="https://sonarcloud.io" \
+      #       /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
+      #     dotnet build --no-incremental
+      #     dotnet sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
+
+      # ── Python / Node / Java — use the generic scanner ────────────────────
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.organization=REPLACE-WITH-SONAR-ORG
+            -Dsonar.projectKey=${{ github.repository_owner }}_${{ github.event.repository.name }}
+
+      # SonarCloud Quality Gate — fails the workflow if the gate is red.
+      - name: Check Quality Gate
+        uses: sonarsource/sonarqube-quality-gate-action@v1.1.0
+        timeout-minutes: 5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

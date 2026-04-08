@@ -1,0 +1,41 @@
+name: Deploy — Production
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+permissions:
+  contents: read
+  deployments: write
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false   # Never cancel production deploys mid-flight
+
+jobs:
+  deploy-production:
+    name: deploy / production
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.url }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy to production
+        id: deploy
+        run: |
+          echo "Deploying tag ${{ github.ref_name }} to production"
+          # TODO: replace with actual deployment command
+          echo "url=https://REPLACE-YOUR-APP.example.com" >> $GITHUB_OUTPUT
+
+      # ── Rollback on failure ───────────────────────────────────────────────
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          echo "Deployment failed — triggering rollback for ${{ github.ref_name }}"
+          # TODO: replace with actual rollback command
+          exit 1

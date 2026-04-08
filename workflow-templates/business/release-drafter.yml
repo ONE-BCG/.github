@@ -1,0 +1,52 @@
+name: Release Drafter
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  update-release-draft:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Draft next release
+        uses: release-drafter/release-drafter@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          config-name: release-drafter-config.yml
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Create .github/release-drafter-config.yml in the target repo with the
+# content below (or copy it via apply-template.sh).
+#
+# name-template: 'v$RESOLVED_VERSION'
+# tag-template: 'v$RESOLVED_VERSION'
+# version-resolver:
+#   major:
+#     labels: ['breaking']
+#   minor:
+#     labels: ['feature', 'enhancement']
+#   patch:
+#     labels: ['fix', 'bugfix', 'hotfix', 'chore', 'documentation']
+#   default: patch
+# categories:
+#   - title: '🚀 Features'
+#     labels: ['feature', 'enhancement']
+#   - title: '🐛 Bug Fixes'
+#     labels: ['fix', 'bugfix', 'hotfix']
+#   - title: '🔒 Security'
+#     labels: ['security']
+#   - title: '🧹 Chores & Maintenance'
+#     labels: ['chore', 'dependencies', 'documentation']
+# exclude-labels: ['skip-release-notes', 'stale']
+# change-template: '- $TITLE @$AUTHOR (#$NUMBER)'
+# template: |
+#   ## What's Changed
+#   $CHANGES
+# ─────────────────────────────────────────────────────────────────────────────

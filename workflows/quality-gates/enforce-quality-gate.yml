@@ -1,0 +1,86 @@
+name: Enforce Quality Gate (Org-wide)
+
+on:
+  schedule:
+    # Run every Monday at 06:00 UTC
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  quality-gate-report:
+    name: org-wide quality gate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Collect workflow run statuses across org repos
+        id: report
+        env:
+          GH_TOKEN: ${{ secrets.ORG_PROVISIONING_PAT }}
+          ORG: ${{ github.repository_owner }}
+        run: |
+          echo "Collecting quality gate status for all repos in $ORG"
+
+          REPOS=$(gh api "orgs/$ORG/repos" --paginate \
+            --jq '[.[] | select(.archived == false) | .full_name]' \
+            | python3 -c "import json,sys; print('\n'.join(json.load(sys.stdin)))")
+
+          REPORT=""
+          FAILURES=""
+
+          while IFS= read -r REPO; do
+            # Check for recent Security Scan failures
+            SEC=$(gh api "repos/$REPO/actions/workflows/security-scan.yml/runs?per_page=1" \
+              --jq '.workflow_runs[0].conclusion // "unknown"' 2>/dev/null || echo "not_found")
+
+            # Check for recent PR Gate failures (last run on default branch)
+            GATE=$(gh api "repos/$REPO/actions/workflows/pr-gate.yml/runs?branch=main&per_page=1" \
+              --jq '.workflow_runs[0].conclusion // "unknown"' 2>/dev/null || echo "not_found")
+
+            LINE="| \`$REPO\` | $SEC | $GATE |"
+            REPORT="$REPORT\n$LINE"
+
+            if [ "$SEC" = "failure" ] || [ "$GATE" = "failure" ]; then
+              FAILURES="$FAILURES\n- $REPO (security: $SEC, gate: $GATE)"
+            fi
+          done <<< "$REPOS"
+
+          echo "report<<EOF" >> $GITHUB_OUTPUT
+          printf "$REPORT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          echo "failures<<EOF" >> $GITHUB_OUTPUT
+          printf "$FAILURES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Post Google Chat notification
+        if: steps.report.outputs.failures != ''
+        env:
+          GOOGLE_CHAT_WEBHOOK_URL: ${{ secrets.GOOGLE_CHAT_WEBHOOK_URL }}
+        run: |
+          if [ -z "$GOOGLE_CHAT_WEBHOOK_URL" ]; then
+            echo "GOOGLE_CHAT_WEBHOOK_URL not set — skipping notification"
+            exit 0
+          fi
+          MSG="*[ONEBCG] Weekly Quality Gate Report — Failures Detected*\n${{ steps.report.outputs.failures }}"
+          curl -s -X POST "$GOOGLE_CHAT_WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d "{\"text\": \"$MSG\"}"
+
+      - name: Raise GitHub issue if failures detected
+        if: steps.report.outputs.failures != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BODY="## Weekly Quality Gate Report\n\nThe following repositories have failing quality gate checks:\n${{ steps.report.outputs.failures }}\n\n### Full Report\n\n| Repository | Security Scan | PR Gate |\n|---|---|---|\n${{ steps.report.outputs.report }}\n\n_Generated: $(date -u)_"
+          gh issue create \
+            --title "Quality Gate failures detected — $(date -u +%Y-%m-%d)" \
+            --body "$BODY" \
+            --label "quality-gate" \
+            --repo ${{ github.repository }} || true

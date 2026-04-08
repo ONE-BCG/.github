@@ -1,0 +1,51 @@
+name: PR Gate
+
+on:
+  pull_request:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
+# Cancel in-flight runs for the same PR when a new push arrives.
+concurrency:
+  group: pr-gate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: pr-gate / lint
+    uses: ./.github/workflows/ci-lint.yml
+
+  build-and-test:
+    name: pr-gate / build-and-test
+    uses: ./.github/workflows/ci-build-test.yml
+
+  dependency-review:
+    name: pr-gate / dependency-review
+    uses: ./.github/workflows/dependency-review.yml
+
+  coverage:
+    name: pr-gate / coverage
+    needs: build-and-test
+    uses: ./.github/workflows/code-coverage.yml
+
+  # Required status check — all jobs above must succeed.
+  gate:
+    name: pr-gate / all-checks
+    needs: [lint, build-and-test, dependency-review, coverage]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Evaluate gate
+        run: |
+          if [[ "${{ needs.lint.result }}" != "success" || \
+                "${{ needs.build-and-test.result }}" != "success" || \
+                "${{ needs.dependency-review.result }}" != "success" || \
+                "${{ needs.coverage.result }}" != "success" ]]; then
+            echo "One or more required checks failed."
+            exit 1
+          fi
+          echo "All gate checks passed."

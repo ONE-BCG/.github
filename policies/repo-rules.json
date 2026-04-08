@@ -1,0 +1,70 @@
+{
+  "_comment": "Org-wide repository ruleset applied via GitHub REST API. Enforced by scripts/governance/enforce-settings.sh.",
+  "ruleset": {
+    "name": "ONEBCG-enterprise-default",
+    "target": "branch",
+    "enforcement": "active",
+    "conditions": {
+      "ref_name": {
+        "include": ["refs/heads/main", "refs/heads/develop"],
+        "exclude": []
+      }
+    },
+    "rules": [
+      { "type": "deletion" },
+      { "type": "non_fast_forward" },
+      { "type": "required_linear_history" },
+      {
+        "type": "required_signatures"
+      },
+      {
+        "type": "pull_request",
+        "parameters": {
+          "required_approving_review_count": 2,
+          "dismiss_stale_reviews_on_push": true,
+          "require_code_owner_review": true,
+          "require_last_push_approval": true,
+          "required_review_thread_resolution": true
+        }
+      },
+      {
+        "type": "required_status_checks",
+        "parameters": {
+          "strict_required_status_checks_policy": true,
+          "required_status_checks": [
+            { "context": "pr-gate / lint", "integration_id": null },
+            { "context": "pr-gate / build-and-test", "integration_id": null },
+            { "context": "Security Scan", "integration_id": null }
+          ]
+        }
+      }
+    ]
+  },
+  "branch_naming": {
+    "_comment": "Enforced by naming convention checks in ci-lint.yml",
+    "allowed_patterns": [
+      "main",
+      "develop",
+      "feature/*",
+      "fix/*",
+      "hotfix/*",
+      "release/*",
+      "chore/*",
+      "docs/*"
+    ]
+  },
+  "repo_settings": {
+    "delete_branch_on_merge": true,
+    "allow_merge_commit": false,
+    "allow_squash_merge": true,
+    "allow_rebase_merge": false,
+    "squash_merge_commit_title": "PR_TITLE",
+    "squash_merge_commit_message": "PR_BODY",
+    "has_wiki": false,
+    "has_projects": false,
+    "vulnerability_alerts": true,
+    "secret_scanning": true,
+    "secret_scanning_push_protection": true,
+    "dependabot_security_updates": true
+  }
+}

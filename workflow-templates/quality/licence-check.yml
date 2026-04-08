@@ -1,0 +1,68 @@
+name: Licence Check
+
+on:
+  pull_request:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  licence-check:
+    name: licence-check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── .NET (NuGet) ──────────────────────────────────────────────────────
+      # - name: Setup .NET
+      #   uses: actions/setup-dotnet@v4
+      #   with:
+      #     dotnet-version: '8.0'
+      # - name: Install nuget-license
+      #   run: dotnet tool install --global nuget-license
+      # - name: Check licences
+      #   run: |
+      #     nuget-license \
+      #       --input . \
+      #       --allowed-license-types MIT Apache-2.0 BSD-2-Clause BSD-3-Clause ISC MS-PL \
+      #       --forbidden-license-types GPL-2.0 GPL-3.0 AGPL-3.0 LGPL-2.0 LGPL-2.1 LGPL-3.0
+
+      # ── Python ────────────────────────────────────────────────────────────
+      # - name: Setup Python
+      #   uses: actions/setup-python@v5
+      #   with:
+      #     python-version: '3.12'
+      # - name: Install pip-licenses
+      #   run: pip install pip-licenses
+      # - name: Check licences
+      #   run: |
+      #     pip-licenses --fail-on="GNU General Public License v2;GNU General Public License v3;GNU Affero General Public License v3;GNU Lesser General Public License v2;GNU Lesser General Public License v3"
+
+      # ── Node / TypeScript ─────────────────────────────────────────────────
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: Install license-checker
+        run: npm install -g license-checker
+      - name: Check licences
+        run: |
+          license-checker \
+            --production \
+            --excludePrivatePackages \
+            --failOn "GPL-2.0;GPL-3.0;AGPL-3.0;LGPL-2.0;LGPL-2.1;LGPL-3.0" \
+            --json \
+            --out licence-report.json
+      - name: Upload licence report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: licence-report
+          path: licence-report.json
+          retention-days: 30

@@ -1,0 +1,77 @@
+name: Build & Test
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+  checks: write
+
+jobs:
+  build-and-test:
+    name: build-and-test
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # Adjust the matrix to match the repo's runtime(s).
+        # Examples: ['8.0'] for .NET, ['3.12', '3.13'] for Python, ['20', '22'] for Node.
+        runtime-version: ['REPLACE-ME']
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # ── .NET ──────────────────────────────────────────────────────────────
+      # Uncomment the block that matches the repo's primary language,
+      # and delete the others.
+
+      # - name: Setup .NET ${{ matrix.runtime-version }}
+      #   uses: actions/setup-dotnet@v4
+      #   with:
+      #     dotnet-version: ${{ matrix.runtime-version }}
+      # - name: Restore dependencies
+      #   run: dotnet restore
+      # - name: Build
+      #   run: dotnet build --no-restore --configuration Release
+      # - name: Test
+      #   run: dotnet test --no-build --configuration Release --logger "trx;LogFileName=results.trx" --results-directory ./test-results
+
+      # ── Python ────────────────────────────────────────────────────────────
+      # - name: Setup Python ${{ matrix.runtime-version }}
+      #   uses: actions/setup-python@v5
+      #   with:
+      #     python-version: ${{ matrix.runtime-version }}
+      # - name: Install dependencies
+      #   run: pip install -r requirements.txt
+      # - name: Run tests
+      #   run: pytest --junitxml=test-results/results.xml -v
+
+      # ── Node / TypeScript ─────────────────────────────────────────────────
+      # - name: Setup Node ${{ matrix.runtime-version }}
+      #   uses: actions/setup-node@v4
+      #   with:
+      #     node-version: ${{ matrix.runtime-version }}
+      #     cache: 'npm'
+      # - name: Install dependencies
+      #   run: npm ci
+      # - name: Build
+      #   run: npm run build --if-present
+      # - name: Test
+      #   run: npm test -- --ci --reporters=jest-junit
+      #   env:
+      #     JEST_JUNIT_OUTPUT_DIR: ./test-results
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-${{ matrix.runtime-version }}
+          path: test-results/
+          retention-days: 14

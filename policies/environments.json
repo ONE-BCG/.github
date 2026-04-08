@@ -1,0 +1,39 @@
+{
+  "_comment": "Environment definitions applied to every provisioned repo. Required reviewers must be replaced with real team slugs.",
+  "environments": [
+    {
+      "name": "dev",
+      "wait_timer": 0,
+      "reviewers": [],
+      "deployment_branch_policy": {
+        "protected_branches": false,
+        "custom_branch_policies": true,
+        "custom_branches": ["develop", "feature/*"]
+      }
+    },
+    {
+      "name": "staging",
+      "wait_timer": 0,
+      "reviewers": [
+        { "type": "Team", "slug": "REPLACE-WITH-QA-TEAM-SLUG" }
+      ],
+      "deployment_branch_policy": {
+        "protected_branches": false,
+        "custom_branch_policies": true,
+        "custom_branches": ["release/*", "hotfix/*"]
+      }
+    },
+    {
+      "name": "production",
+      "wait_timer": 300,
+      "reviewers": [
+        { "type": "Team", "slug": "REPLACE-WITH-TECH-LEADS-TEAM-SLUG" },
+        { "type": "Team", "slug": "REPLACE-WITH-DEVOPS-TEAM-SLUG" }
+      ],
+      "deployment_branch_policy": {
+        "protected_branches": true,
+        "custom_branch_policies": false
+      }
+    }
+  ]
+}
