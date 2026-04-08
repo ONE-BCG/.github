@@ -140,10 +140,6 @@ After commit/push, `apply-template.sh` calls:
 |---|---|
 | `dotnet`, `.net`, `csharp`, `c#` | `CLAUDE-dotnet.md` |
 | `python`, `django`, `fastapi`, `flask`, `celery` | `CLAUDE-python.md` |
-| `flutter`, `dart` | `CLAUDE-flutter.md` *(future)* |
-| `java`, `kotlin`, `spring` | `CLAUDE-java.md` *(future)* |
-| `go`, `golang` | `CLAUDE-go.md` *(future)* |
-| `node`, `typescript`, `express` | `CLAUDE-node.md` *(future)* |
 | *(no match)* | `CLAUDE-default.md` |
 
 ---
