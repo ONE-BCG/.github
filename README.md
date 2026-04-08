@@ -1,4 +1,4 @@
-# .github
+# .github README
 
 Organisation-wide GitHub configuration for Claude Code automation (ONEBCG v2026).
 
