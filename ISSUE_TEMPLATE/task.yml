@@ -1,0 +1,80 @@
+name: "Task"
+description: "Create a task"
+
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      placeholder: "Add task details"
+    validations:
+      required: false
+
+  - type: input
+    id: claude_session_link
+    attributes:
+      label: Claude Session Link
+      placeholder: "Add the link to the relevant Claude conversation for reference"
+    validations:
+      required: false
+
+  - type: textarea
+    id: attachments
+    attributes:
+      label: Attachments
+      placeholder: "Add Attachments"
+    validations:
+      required: false
+      
+  - type: checkboxes
+    id: stakeholder_confirmation
+    attributes:
+      label: Stakeholder Confirmation
+      options:
+        - label: BA
+        - label: PO
+        - label: Dev - API
+        - label: Dev - UI
+        - label: QA
+    validations:
+      required: false
+
+  - type: textarea
+    id: pr_notes
+    attributes:
+      label: PR Notes
+      placeholder: "Add PR notes"
+    validations:
+      required: false
+
+  - type: textarea
+    id: qa_notes
+    attributes:
+      label: QA Notes
+      placeholder: "Add QA notes"
+    validations:
+      required: false
+
+  - type: textarea
+    id: dev_notes
+    attributes:
+      label: Dev Notes
+      placeholder: "Add any additional Dev details"
+    validations:
+      required: false
+
+  - type: input
+    id: estimated_hours
+    attributes:
+      label: Estimated Hours
+      placeholder: "Example: 10, 20.5"
+    validations:
+      required: false
+
+  - type: input
+    id: actual_hours
+    attributes:
+      label: Actual Hours
+      placeholder: "Example: 10, 20.5"
+    validations:
+      required: false

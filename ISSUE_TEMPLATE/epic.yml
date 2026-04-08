@@ -1,0 +1,73 @@
+name: "Epic"
+description: "Create a new Epic/Feature"
+labels:
+  - Title
+
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      placeholder: "Add feature details"
+    validations:
+      required: true
+
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - Lowest
+        - Low
+        - Medium
+        - High
+        - Highest
+    validations:
+      required: true
+
+  - type: input
+    id: start_date
+    attributes:
+      label: Start Date
+      placeholder: "YYYY-MM-DD"
+    validations:
+      required: false
+
+  - type: input
+    id: end_date
+    attributes:
+      label: End Date
+      placeholder: "YYYY-MM-DD"
+    validations:
+      required: false
+
+  - type: input
+    id: estimated_hours
+    attributes:
+      label: Estimated Hours
+      placeholder: "Example: 10, 20.5"
+    validations:
+      required: false
+
+  - type: input
+    id: actual_hours
+    attributes:
+      label: Actual Hours
+      placeholder: "Example: 10, 20.5"
+    validations:
+      required: false
+  
+  - type: dropdown
+    id: epic_size
+    attributes:
+      label: Epic Size
+      options:
+      - XS 
+      - Small
+      - Medium
+      - Large
+      - XL
+      - XXL
+    validations:
+      required: false

@@ -1,0 +1,85 @@
+name: Bug
+description: Create a Bug
+
+body:
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      placeholder: "Add issue details"
+    validations:
+      required: true
+      
+  - type: textarea
+    id: steps_to_reproduce
+    attributes:
+      label: Steps to Reproduce
+      placeholder: "Provide steps to reproduce"
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected_behavior
+    attributes:
+      label: Expected Behaviour
+      placeholder: "Provide expected behaviour details"
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual_behavior
+    attributes:
+      label: Actual Behaviour
+      placeholder: "Provide actual behaviour details"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: Bug_type
+    attributes:
+      label: Bug Type
+      options:
+        - Functional
+        - UI
+        - Security
+        - Infra
+        - Performance
+        - Compatibility
+        - Integration
+        - Data
+        - Regression
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - Lowest
+        - Low
+        - Medium
+        - High
+        - Highest
+    validations:
+      required: true
+      
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - Sev 4
+        - Sev 3
+        - Sev 2
+        - Sev 1
+    validations:
+      required: true
+
+  - type: textarea
+    id: supporting_documentation
+    attributes:
+      label: Supporting Documentation
+    validations:
+      required: false
